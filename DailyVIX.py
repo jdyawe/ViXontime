@@ -14,8 +14,8 @@ import sklearn as skl
 
 pd.set_option('display.max_columns', 30)
 
-start = pd.to_datetime('20190301')
-end = pd.to_datetime('20210808')
+start = pd.to_datetime('20210701')
+end = pd.to_datetime('20210809')
 tdy = datetime.now()
 symbol = "510050.XSHG"
 
