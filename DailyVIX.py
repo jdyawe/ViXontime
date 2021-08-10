@@ -14,8 +14,8 @@ import sklearn as skl
 
 pd.set_option('display.max_columns', 30)
 
-start = pd.to_datetime('20200101')
-end = pd.to_datetime('20210804')
+start = pd.to_datetime('20190301')
+end = pd.to_datetime('20210808')
 tdy = datetime.now()
 symbol = "510050.XSHG"
 
@@ -225,7 +225,6 @@ class VIXDaily():
 
         return [sigma_near, sigma_next, sigma, nearOptionEval, nextOptionEval]
 
-
     def evaluationByETFClosest(self, trading_date):
         # 取平价合约
         tempP = self.neartermOption.reset_index().set_index('contract_type').loc[
@@ -362,43 +361,29 @@ class VIXDaily():
         self.etfPrice['pctchange'] = self.etfPrice.change/self.etfPrice.close.shift(1)
         # print(self.etfPrice)
 
+def main():
+    K = VIXDaily(underlying_asset=symbol, startdate=start, enddate=end)
+    K.start()
+    K.forward()
+    vix = pd.Series(np.zeros(len(K.Vix)), index=K.tradedays)
+    for i in np.arange(len(K.tradedays)):
+        day = K.tradedays[i]
+        vix[day] = K.Vix[i][2]
 
-# def main():
-#     K = VIXDaily(underlying_asset=symbol, startdate=start, enddate=end)
-#     K.start()
-#     K.forward()
-#     vix = pd.Series(np.zeros(len(K.Vix)), index=K.tradedays)
-#     for i in np.arange(len(K.tradedays)):
-#         day = K.tradedays[i]
-#         vix[day] = K.Vix[i][2]
-#
-#     # print(temp)
-#
-#     # print(sigma_near)
-#     # print(K0near)
-#     # print(sigma_near)
-#     # print(sigma_next)
-#
-#     plt.plot(vix)
-#     plt.show()
-#
-#
-# if __name__ == '__main__':
-#     main()
+    # print(temp)
 
-K = VIXDaily(underlying_asset=symbol, startdate=start, enddate=end)
-K.start()
-K.forward()
-vix = pd.Series(np.zeros(len(K.Vix)), index=K.tradedays)
-for i in np.arange(len(K.tradedays)):
-    day = K.tradedays[i]
-    vix[day] = K.Vix[i][2]
+    # print(sigma_near)
+    # print(K0near)
+    # print(sigma_near)
+    # print(sigma_next)
 
-plt.plot(vix)
+    plt.plot(vix)
+    vix.to_csv('VIXDaily.csv', header=None)
+    plt.show()
 
-# K.getETF(symbol, start, end)
-# plt.plot(np.sqrt((K.etfPrice.pctchange**2).rolling(5).agg('mean').shift(-5)*252/5)*100)
 
-plt.show()
+if __name__ == '__main__':
+    main()
+
 
 
