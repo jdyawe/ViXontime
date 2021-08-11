@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+
 import seaborn as sns
 
 import scipy
@@ -20,15 +21,61 @@ tdy = datetime.now()
 ystdy = datetime.now() - dt.timedelta(days=1)
 symbol = "510050.XSHG"
 
+class VIXontime():
+    def __init__(self):
+        self.R = 0.02  # 无风险利率 约为1年期中国国债
+        self.DailyData = pd.DataFrame()
+        # row: timestamp columns: 计算波动率所需的中间量
 
-class VIXDaily():
-    def __init__(self, underlying_asset: str, startdate, enddate=tdy):
+
+        self.OptionGetFilter()
+        self.serverConn()
+
+        self.HistoryData()
+        self.evaluation()
+
+        self.Timer()
+
+    def OptionGetFilter(self):
+
+        pass
+    def serverConn(self):
+        pass
+    def getPriceOntime(self):
+        # self.evaluation()
+        pass
+    def evaluation(self):
+        pass
+    def HistoryData(self):
+        pass
+
+    def Timer(self):
+        # connect to self.getPriceOntime()
+        pass
+
+
+class MainUI():
+    def __init__(self):
+        pass
+
+    def Plotting_Window(self):
+        pass
+
+    def Check_Box_settle(self):
+        pass
+
+    def update_plot_ontime(self):
+        pass
+
+
+class VIXOntime():
+    def __init__(self, underlying_asset: str, date=tdy):
         # symbol is the underlying assets of option
         # startdate: VIX start time
         # enddate: VIX end time
-        self.ID = '18810592263'
-        self.pwd = '592263'
-        jds.auth(self.ID, self.pwd)
+        # self.ID = '18810592263'
+        # self.pwd = '592263'
+        # jds.auth(self.ID, self.pwd)
         self.R = 0.02  # 无风险利率 约为1年期中国国债
 
         self.fields = ['code', 'name', 'exercise_price', 'contract_type', 'list_date']
@@ -47,7 +94,7 @@ class VIXDaily():
         # print(history_option)
 
         #取历史合约行情
-        self.tradedays = jds.get_trade_days(start_date=startdate, end_date=enddate)
+        # self.tradedays = jds.get_trade_days(start_date=startdate, end_date=enddate)
         # for i in np.arange(len(self.tradedays)):
         #     self.tradedays[i] = datetime(self.tradedays[i].year, self.tradedays[i].month, self.tradedays[i].day, )
         # print(self.tradedays)
@@ -377,8 +424,8 @@ def main():
     # print(K0near)
     # print(sigma_near)
     # print(sigma_next)
-    vixp = pd.read_csv('VIXDaily.csv', index_col=0)
-    vixp = pd.concat([vixp, vix], axis=0, join='outer')
+    vixp = pd.read_csv('VIXDaily.csv')
+    vixp = pd.concat([vixp, vix])
     plt.plot(vixp)
     vixp.to_csv('VIXDaily.csv', header=None)
     plt.show()
