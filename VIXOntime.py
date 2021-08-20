@@ -490,7 +490,7 @@ class MainUI(QtWidgets.QMainWindow):
 
     def update_plot_ontime(self):
         self.K.getPriceOntime(self.K.ThreadMonitor)
-        if 0 <= self.K.counts < 14402:
+        if 0 < self.K.counts < 14402:
             self.publisher.hset(name='V'+rKeysList[self.K.counts][1:], key='ZH', value=self.K._Sr_vixOntime[self.K.counts-1])
             self.publisher.publish(channel='V:ZH', message=self.K._Sr_vixOntime[self.K.counts])
         self.LinesPlot['vix'].setData(np.arange(self.K.counts), self.K._Sr_vixOntime[:self.K.counts])
