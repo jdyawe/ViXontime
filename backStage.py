@@ -420,7 +420,6 @@ class backstage():
         self.update_plot_ontime()
         if self.counts>=14402:
             self.timer.cancel()
-<<<<<<< HEAD
             sys.exit()
         wait = self.sync()
         self.timer = threading.Timer(wait, self.iterator)
@@ -431,11 +430,9 @@ class backstage():
         return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1)) -
                 dt.datetime.now()).total_seconds()
 
-=======
         self.timer = threading.Timer(0.5, self.iterator)
         self.timer.start()
 
->>>>>>> d0a674a2702c339c9969afbac87b59a24ffde9b6
     def update_plot_ontime(self):
         self.K.getPriceOntime(self.K.ThreadMonitor)
         if 0 < self.K.counts < 14402 and self.counts != self.K.counts:
@@ -465,11 +462,8 @@ def main():
     if len(sys.argv) > 1:
         symbol = sys.argv[1]
 
-<<<<<<< HEAD
     backstage()
 
-=======
->>>>>>> d0a674a2702c339c9969afbac87b59a24ffde9b6
 
 
 if __name__ == '__main__':

@@ -239,15 +239,14 @@ class MainUI(QtWidgets.QMainWindow):
     def update_plot_ontime(self):
         self.K.evaluation()
         if self.K.timestamp <= self.K.Xrange[-1]:
-            self.LinesPlot['vix'].setData(range(sum(self.K.Xrange<=self.K.timestamp)),
-                                        self.K.VIX_Ontime[:self.K.timestamp])
+            temp = sum(self.K.Xrange<=self.K.timestamp)+1
+            self.LinesPlot['vix'].setData(range(temp),
+                                        self.K.VIX_Ontime.iloc[:temp])
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         file = datetime.datetime.now().date().strftime("%Y%m%d")+'VIXTICK.csv'
         with open(file, 'w') as f:
             self.K.VIX_TICK_DATA.to_csv(f)
-
-
 
 
 # def tt(x):
