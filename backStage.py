@@ -407,7 +407,7 @@ class backstage():
         self.K = VIXontime(History)
         self.counts = self.K.counts
 
-        self.publisher = redis.Redis(host='168.36.1.181', db=5, port=6379, password='', charset='gb18030',
+        self.publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
                                      errors='replace', decode_responses=True, )
 
         self.timer_init()
@@ -436,13 +436,13 @@ class backstage():
     def update_plot_ontime(self):
         self.K.getPriceOntime(self.K.ThreadMonitor)
         if 0 < self.K.counts < 14402 and self.counts != self.K.counts:
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#01:ZH',
+            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#01:ZH',
                                 value=self.K._Sr_vixOntime[self.K.counts - 1])
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#0:ZH',
+            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#0:ZH',
                                 value=self.K._Sr_vixNearOntime[self.K.counts - 1])
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#1:ZH',
+            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#1:ZH',
                                 value=self.K._Sr_vixNextOntime[self.K.counts - 1])
-            self.publisher.publish(channel='V:ZH', message='V' + rKeysList[self.counts][1:])
+            self.publisher.publish(channel='V:', message=rKeysList[self.counts])
             self.counts = self.K.counts
         else:
             self.counts = self.K.counts
