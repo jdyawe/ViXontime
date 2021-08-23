@@ -65,11 +65,13 @@ class JQVIXonTime:
         self.options.set_index('code', inplace=True)
 
         self.VIX_Ontime = pd.Series(np.nan*len(self.Xrange), dtype='float', index=self.Xrange)
+        self.VIX_TICK_DATA = pd.Series(dtype='float')
 
     def getPriceOntime(self):
         self.price = jds.get_bars(security=self.options.index.to_list(), count=1, unit='1m', fields=['close'],
                                   end_dt=(datetime.datetime.now()+datetime.timedelta(minutes=1)).replace(second=0),
                                   include_now=True).reset_index(level=0).set_index('level_0')
+        self.ticktime = datetime.datetime.now().replace(microsecond=0)
         self.timestamp = (datetime.datetime.now()+datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         self.options['close'] = self.price
         # self.options = self.options.reset_index().set_index(['contract_type', 'exercise_price'])
@@ -133,6 +135,7 @@ class JQVIXonTime:
         sigma = sigma * 365 / 30
         sigma = 100 * np.sqrt(sigma)
         self.VIX_Ontime[self.timestamp] = sigma
+        self.VIX_TICK_DATA[self.ticktime] = sigma
         print(self.timestamp, sigma)
 
 
@@ -220,7 +223,7 @@ class MainUI(QtWidgets.QMainWindow):
         self.LinesPlot = {}
         color = [255, 0, 0]
         self.LinesPlot['pen'] = pg.mkPen(QtGui.QColor(color[0], color[1], color[2]),
-                                         width=0.25)
+                                         width=1)
 
         self.LinesPlot['vix'] = self.Canvas.plot()
         self.LinesPlot['vix'].setData([], [], pen=self.LinesPlot['pen'])
@@ -228,7 +231,7 @@ class MainUI(QtWidgets.QMainWindow):
     def timer_init(self):
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(lambda: self.update_plot_ontime())
-        self.timer.start(1500)
+        self.timer.start(1000)
 
     def update_plot_ontime(self):
         self.K.evaluation()
@@ -237,7 +240,12 @@ class MainUI(QtWidgets.QMainWindow):
                                         self.K.VIX_Ontime[:self.K.timestamp])
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-        pass
+        file = datetime.datetime.now().date().strftime("%Y%m%d")+'VIXTICK.csv'
+        with open(file, 'w') as f:
+            self.K.VIX_TICK_DATA.to_csv(f)
+
+
+
 
 # def tt(x):
 #     x.set_index('cp', inplace=True)

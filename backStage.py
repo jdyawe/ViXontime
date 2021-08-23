@@ -1,4 +1,3 @@
-import jqdatasdk as jds
 from datetime import datetime
 import datetime as dt
 import pandas as pd
@@ -21,8 +20,6 @@ import seaborn as sns
 import scipy
 import sklearn as sl
 
-from PyQt5 import QtWidgets, QtCore, QtGui
-import pyqtgraph as pg
 from sublist import rKeysList
 
 # eft复权后取平价合约和直接利用沽购合约价差最小取平价合约的结果不一定相同！！！
@@ -145,7 +142,7 @@ class VIXontime():
         # self.evaluation()
 
         time.sleep(0.5)
-        if History and self.counts>0:
+        if History and self.counts > 0:
             H = HistoryThread(self.HistoryData, 0, self.counts, self.nearOption, self.nextOption)
             H.start()
             # H.join()
@@ -154,8 +151,6 @@ class VIXontime():
             #     temp = self.counts
             #     H.start()
             #     H.join()
-
-
 
         self.getPriceOntime(self.ThreadMonitor)
 
@@ -280,7 +275,7 @@ class VIXontime():
         # K0near = T.idxmin()
         Fnear = K0near.set_index('cp')
         Fnear = float(Fnear.px[0]) + np.exp(self.R * self.TminRemainingNear[counts]) * \
-                     (float(Fnear.loc['C', 'currentPrice']) - float(Fnear.loc['P', 'currentPrice']))
+                (float(Fnear.loc['C', 'currentPrice']) - float(Fnear.loc['P', 'currentPrice']))
         if abs(Fnear - round(Fnear / 100) * 100) < 1:
             Fnear = round(Fnear / 100) * 100
         K0near = nearOption.px[nearOption.px <= Fnear].max()
@@ -293,37 +288,37 @@ class VIXontime():
         Fnext = K0next.set_index('cp')
         # print(Fnext)
         Fnext = float(Fnext.px[0]) + np.exp(self.R * self.TminRemainingNext[counts]) * \
-                     (float(Fnext.loc['C', 'currentPrice']) - float(Fnext.loc['P', 'currentPrice']))
-        if abs(Fnext-round(Fnext/100)*100)<1:
-            Fnext = round(Fnext/100)*100
+                (float(Fnext.loc['C', 'currentPrice']) - float(Fnext.loc['P', 'currentPrice']))
+        if abs(Fnext - round(Fnext / 100) * 100) < 1:
+            Fnext = round(Fnext / 100) * 100
         K0next = nextOption.px[nextOption.px <= Fnext].max()
         K0next = nextOption[nextOption.px == K0next]
 
         compOptionsNear, compOptionsNext = self.InmoneyOptions(K0near, K0next, nearOption, nextOption)
         # compOptionsNear, compOptionsNext = self.InmoneyOptions(Fnear, Fnext, nearOption, nextOption)
         sigmaNear = 2 / self.TminRemainingNear[counts] * (compOptionsNear.DeltaK / compOptionsNear.px ** 2 *
-                    compOptionsNear.currentPrice).sum() * np.exp(self.TminRemainingNear[counts] * self.R) - \
-                         1 / self.TminRemainingNear[counts] * (Fnear / K0near.px[0] - 1) ** 2
+                                                          compOptionsNear.currentPrice).sum() * np.exp(
+            self.TminRemainingNear[counts] * self.R) - \
+                    1 / self.TminRemainingNear[counts] * (Fnear / K0near.px[0] - 1) ** 2
 
         sigmaNext = 2 / self.TminRemainingNext[counts] * (compOptionsNext.DeltaK / compOptionsNext.px ** 2 *
-                    compOptionsNext.currentPrice).sum() * np.exp(self.TminRemainingNext[counts] * self.R) - \
-                         1 / self.TminRemainingNext[counts] * (Fnext / K0next.px[0] - 1) ** 2
+                                                          compOptionsNext.currentPrice).sum() * np.exp(
+            self.TminRemainingNext[counts] * self.R) - \
+                    1 / self.TminRemainingNext[counts] * (Fnext / K0next.px[0] - 1) ** 2
 
         NearComponent = 365 / 30 * self.TminRemainingNear[counts] * sigmaNear * \
                         (self.TminRemainingNext[counts] - 30 / 365) / (
-                                    self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
+                                self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
         NextComponent = 365 / 30 * self.TminRemainingNext[counts] * sigmaNext * \
                         (30 / 365 - self.TminRemainingNear[counts]) / (
-                                    self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
+                                self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
         sigmaOntime = 100 * np.sqrt(NearComponent + NextComponent)
 
         self._Sr_vixOntime[counts] = sigmaOntime
         self._Sr_vixNearOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNear)
-        #近期合约波动率
+        # 近期合约波动率
         self._Sr_vixNextOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNext[counts] * sigmaNext)
-        #远期合约波动率
-
-
+        # 远期合约波动率
 
         # print(counts)
         # print(compOptionsNext)
@@ -338,7 +333,6 @@ class VIXontime():
         # print(Fnext)
         # print(K0next.px[0])
 
-
         # print(sigmaNear)
         # print(sigmaNext)
         # print(self._Sr_vixOntime[counts])
@@ -349,14 +343,14 @@ class VIXontime():
         return abs(options.loc['C', 'currentPrice'] - options.loc['P', 'currentPrice'])
 
     def InmoneyOptions(self, K0near, K0next, nearOption, nextOption):
-    # def InmoneyOptions(self, Fnear, Fnext, nearOption, nextOption):
+        # def InmoneyOptions(self, Fnear, Fnext, nearOption, nextOption):
         base = K0near.px[0]
         compOptionsNear = pd.concat([nearOption[(nearOption.px <= base) & (nearOption.cp == 'P')],
-                                          nearOption[(nearOption.px >= base) & (nearOption.cp == 'C')]])
+                                     nearOption[(nearOption.px >= base) & (nearOption.cp == 'C')]])
         # print(self.compOptionsNear)
         base = K0next.px[0]
         compOptionsNext = pd.concat([nextOption[(nextOption.px <= base) & (nextOption.cp == 'P')],
-                                          nextOption[(nextOption.px >= base) & (nextOption.cp == 'C')]])
+                                     nextOption[(nextOption.px >= base) & (nextOption.cp == 'C')]])
         # print(self.compOptionsNext)
         return compOptionsNear, compOptionsNext
 
@@ -407,109 +401,43 @@ class VIXontime():
     #     pass
 
 
-class MainUI(QtWidgets.QMainWindow):
+class backstage():
     def __init__(self, History=True):
-        super(MainUI, self).__init__()
 
         self.K = VIXontime(History)
         self.counts = self.K.counts
 
-        self.publisher = redis.Redis(host='168.36.1.181', db=5, port=6379, password='',charset='gb18030',
-                           errors='replace', decode_responses=True,)
-
-        self.setWindowTitle('VIXonTime' + symbol)
-        # main window create
-
-        self.main_widget = QtWidgets.QWidget()
-        self.main_layout = QtWidgets.QHBoxLayout()
-        self.main_widget.setLayout(self.main_layout)
-        self.setCentralWidget(self.main_widget)
-        self.main_layout.setSpacing(0)
-
-        self.Plotting_Window()
-        self.main_layout.addWidget(self.plot_window, stretch=1)
+        self.publisher = redis.Redis(host='168.36.1.181', db=5, port=6379, password='', charset='gb18030',
+                                     errors='replace', decode_responses=True, )
 
         self.timer_init()
 
-    def Plotting_Window(self):
-        self.plot_window = QtWidgets.QWidget()
-        self.plot_layout = QtWidgets.QGridLayout()
-        self.plot_window.setLayout(self.plot_layout)
-
-        TimeLabel = \
-            {
-                0: "09:30:00",
-                1800: "10:00:00",
-                3600: "10:30:00",
-                7200: "11:30:00/13:00:00",
-                7201 + 3600: "14:00:00",
-                7201 + 5400: "14:30:00",
-                7201 + 7200: "15:00:00",
-            }
-
-        # 滚轮与右键控件
-        class ModifiedViewBox(pg.ViewBox):
-            def __init__(self):
-                super(ModifiedViewBox, self).__init__()
-
-            def mouseDragEvent(self, ev, axis=None):
-                ev.ignore()
-
-            def wheelEvent(self, ev, axis=None):
-                ev.ignore()
-
-        self.vb = ModifiedViewBox()
-        self.vb.setAutoVisible(y=True)
-
-        # stringXaxis = pg.AxisItem(orientation='bottom')
-        # stringXaxis.setTicks(TimeLabel.items())
-
-        self.Canvas = pg.PlotWidget(viewBox=self.vb)
-        # self.Canvas = pg.PlotWidget()
-        self.Canvas.setBackground('w')
-        self.Canvas.getAxis('bottom').setTicks([TimeLabel.items()])
-        self.Canvas.showGrid(x=True, y=True)
-        self.Canvas.setXRange(0, 14401, padding=0.01)
-        # self.Canvas.setYRange(padding=self.Canvas.)
-
-        self.plot_layout.addWidget(self.Canvas)
-        # self.plot_layout.setOriginCorner()
-        self.plot_layout.setSpacing(0)
-
-        self.presentBox = pg.TextItem()
-        # self.Canvas.addItem(self.presentBox)
-
-        # adding signals
-        self.LinesPlot = {}
-        color = [255, 0, 0]
-        self.LinesPlot['pen'] = pg.mkPen(QtGui.QColor(color[0], color[1], color[2]),
-                                         width=0.25)
-
-        self.LinesPlot['vix'] = self.Canvas.plot()
-        self.LinesPlot['vix'].setData([], [], pen=self.LinesPlot['pen'])
-
     def timer_init(self):
-        self.timer = QtCore.QTimer(self)
-        self.timer.timeout.connect(lambda: self.update_plot_ontime())
-        self.timer.start(500)
+        self.timer = threading.Timer(0, self.iterator)
+        self.timer.start()
+
+    def iterator(self):
+        self.update_plot_ontime()
+        if self.counts>=14402:
+            self.timer.cancel()
+        self.timer = threading.Timer(0.5, self.iterator)
+        self.timer.start()
 
     def update_plot_ontime(self):
         self.K.getPriceOntime(self.K.ThreadMonitor)
         if 0 < self.K.counts < 14402 and self.counts != self.K.counts:
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6]+'#01:ZH',
+            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#01:ZH',
                                 value=self.K._Sr_vixOntime[self.K.counts - 1])
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6]+'#0:ZH',
+            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#0:ZH',
                                 value=self.K._Sr_vixNearOntime[self.K.counts - 1])
-            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6]+'#1:ZH',
+            self.publisher.hset(name='V' + rKeysList[self.counts][1:], key=symbol[:6] + '#1:ZH',
                                 value=self.K._Sr_vixNextOntime[self.K.counts - 1])
             self.publisher.publish(channel='V:ZH', message='V' + rKeysList[self.counts][1:])
             self.counts = self.K.counts
-        self.LinesPlot['vix'].setData(np.arange(self.K.counts), self.K._Sr_vixOntime[:self.K.counts])
+        else:
+            self.counts = self.K.counts
 
-    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-        self.K.conn_r.close()
-        self.K.conn.close()
-        self.publisher.close()
+
 
 # def tt(x):
 #     x.set_index('cp', inplace=True)
@@ -521,13 +449,9 @@ def main():
     # T = K.nearOption.groupby('pxu').apply(lambda x: tt(x))
     # print(T)
     # 修改标的
-    symbol = '510050'
+    if len(sys.argv) > 1:
+        symbol = sys.argv[1]
 
-    QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
-    app = QtWidgets.QApplication(sys.argv)
-    gui = MainUI(True)
-    gui.show()
-    sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
