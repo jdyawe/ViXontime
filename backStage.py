@@ -9,6 +9,7 @@ import yaml
 import threading
 import time
 import sys
+from collections import defaultdict
 
 from ut_redis import FrRedis
 from ut_dmdi import DailyMdi
@@ -21,8 +22,6 @@ import scipy
 import sklearn as sl
 
 from sublist import rKeysList
-
-# eft复权后取平价合约和直接利用沽购合约价差最小取平价合约的结果不一定相同！！！
 
 # 合成期货价格F也许也有不错的意义？？？？？？？？？？？？
 
@@ -109,11 +108,18 @@ symbol = "510050.XSHG"
 
 
 class VIXontime():
-    def __init__(self, History=True):
+    def __init__(self, symbol, History=True):
         self._Sr_vixOntime = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixOntimeC = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixOntimeP = pd.Series([np.nan] * 14402, dtype='float64')
         self._Sr_vixNearOntime = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixNearOntimeC = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixNearOntimeP = pd.Series([np.nan] * 14402, dtype='float64')
         self._Sr_vixNextOntime = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixNextOntimeC = pd.Series([np.nan] * 14402, dtype='float64')
+        self._Sr_vixNextOntimeP = pd.Series([np.nan] * 14402, dtype='float64')
 
+        self.symbol = symbol
         self.timestampinit()
         self.serverConn()
         self.ThreadMonitor = MyThread(threadName='JJ', counts=self.counts, channel='H:',
@@ -163,7 +169,7 @@ class VIXontime():
     def OptionGetFilter(self):
         rd = FrRedis("168.36.1.170")
         dmdi = DailyMdi(rd)
-        opkind = symbol[:6]
+        opkind = self.symbol[:6]
 
         lst = dmdi.d_icode_opi
         for k, v in lst.items():
@@ -183,13 +189,13 @@ class VIXontime():
         self.nearOption = self.nearOption.groupby('cp').apply(lambda x: self.DeltaKGenerate(x))
         # print(self.nearOption)
         self.nearexpire = pd.to_datetime(dmdi.d_opkind_d_yymm_exdate[opkind][a_yymm[0]]) + dt.timedelta(hours=15,
-                                                                                                        minutes=30)
+                                                                                                        minutes=30, seconds=0, microseconds=0)
         nextOption.loc[:, 'src'] = 'OP' + opkind + ':#1:' + nextOption.pxu + ':' + nextOption.cp
         self.nextOption = nextOption.sort_values(['cp', 'px', 'icode'])
         self.nextOption = self.nextOption.groupby('cp').apply(lambda x: self.DeltaKGenerate(x))
         # print(self.nextOption)
         self.nextexpire = pd.to_datetime(dmdi.d_opkind_d_yymm_exdate[opkind][a_yymm[1]]) + dt.timedelta(hours=15,
-                                                                                                        minutes=30)
+                                                                                                        minutes=30, seconds=0, microseconds=0)
 
     def timestampinit(self):
         '''
@@ -294,32 +300,59 @@ class VIXontime():
         K0next = nextOption.px[nextOption.px <= Fnext].max()
         K0next = nextOption[nextOption.px == K0next]
 
-        compOptionsNear, compOptionsNext = self.InmoneyOptions(K0near, K0next, nearOption, nextOption)
+        compOptionsNearP, compOptionsNearC, compOptionsNextP, compOptionsNextC = self.InmoneyOptions(K0near, K0next, nearOption, nextOption)
         # compOptionsNear, compOptionsNext = self.InmoneyOptions(Fnear, Fnext, nearOption, nextOption)
-        sigmaNear = 2 / self.TminRemainingNear[counts] * (compOptionsNear.DeltaK / compOptionsNear.px ** 2 *
-                                                          compOptionsNear.currentPrice).sum() * np.exp(
+
+        sigmaNearP = 2 / self.TminRemainingNear[counts] * (compOptionsNearP.DeltaK / compOptionsNearP.px ** 2 *
+                                                          compOptionsNearP.currentPrice).sum() * np.exp(
             self.TminRemainingNear[counts] * self.R) - \
-                    1 / self.TminRemainingNear[counts] * (Fnear / K0near.px[0] - 1) ** 2
+                    1 / 2 / self.TminRemainingNear[counts] * (Fnear / K0near.px[0] - 1) ** 2
 
-        sigmaNext = 2 / self.TminRemainingNext[counts] * (compOptionsNext.DeltaK / compOptionsNext.px ** 2 *
-                                                          compOptionsNext.currentPrice).sum() * np.exp(
+        sigmaNearC = 2 / self.TminRemainingNear[counts] * (compOptionsNearC.DeltaK / compOptionsNearC.px ** 2 *
+                                                          compOptionsNearC.currentPrice).sum() * np.exp(
+            self.TminRemainingNear[counts] * self.R) - \
+                    1 / 2 / self.TminRemainingNear[counts] * (Fnear / K0near.px[0] - 1) ** 2
+
+        sigmaNextP = 2 / self.TminRemainingNext[counts] * (compOptionsNextP.DeltaK / compOptionsNextP.px ** 2 *
+                                                          compOptionsNextP.currentPrice).sum() * np.exp(
             self.TminRemainingNext[counts] * self.R) - \
-                    1 / self.TminRemainingNext[counts] * (Fnext / K0next.px[0] - 1) ** 2
+                    1 / 2 / self.TminRemainingNext[counts] * (Fnext / K0next.px[0] - 1) ** 2
 
-        NearComponent = 365 / 30 * self.TminRemainingNear[counts] * sigmaNear * \
+        sigmaNextC = 2 / self.TminRemainingNext[counts] * (compOptionsNextC.DeltaK / compOptionsNextC.px ** 2 *
+                                                          compOptionsNextC.currentPrice).sum() * np.exp(
+            self.TminRemainingNext[counts] * self.R) - \
+                    1 / 2 / self.TminRemainingNext[counts] * (Fnext / K0next.px[0] - 1) ** 2
+
+
+
+        NearComponentC = 365 / 30 * self.TminRemainingNear[counts] * sigmaNearC * \
                         (self.TminRemainingNext[counts] - 30 / 365) / (
                                 self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
-        NextComponent = 365 / 30 * self.TminRemainingNext[counts] * sigmaNext * \
+        NearComponentP = 365 / 30 * self.TminRemainingNear[counts] * sigmaNearP * \
+                         (self.TminRemainingNext[counts] - 30 / 365) / (
+                                 self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
+        NextComponentC = 365 / 30 * self.TminRemainingNext[counts] * sigmaNextC * \
                         (30 / 365 - self.TminRemainingNear[counts]) / (
                                 self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
-        sigmaOntime = 100 * np.sqrt(NearComponent + NextComponent)
+        NextComponentP = 365 / 30 * self.TminRemainingNext[counts] * sigmaNextP * \
+                        (30 / 365 - self.TminRemainingNear[counts]) / (
+                                self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
+        sigmaOntimeC = 100 * np.sqrt(NearComponentC + NextComponentC)
+        sigmaOntimeP = 100 * np.sqrt(NearComponentP + NextComponentP)
 
-        self._Sr_vixOntime[counts] = sigmaOntime
-        self._Sr_vixNearOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNear)
+        self._Sr_vixOntimeC[counts] = sigmaOntimeC
+        self._Sr_vixOntimeP[counts] = sigmaOntimeP
+        self._Sr_vixOntime[counts] = sigmaOntimeP+sigmaOntimeC
+
+        self._Sr_vixNearOntimeC[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearC)
+        self._Sr_vixNearOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearP)
+        self._Sr_vixNearOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP + sigmaNearC))
         # 近期合约波动率
-        self._Sr_vixNextOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNext[counts] * sigmaNext)
-        # 远期合约波动率
 
+        self._Sr_vixNextOntimeC[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNext[counts] * sigmaNextC)
+        self._Sr_vixNextOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNext[counts] * sigmaNextP)
+        self._Sr_vixNextOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNext[counts] * (sigmaNextC + sigmaNextP))
+        # 远期合约波动率
         # print(counts)
         # print(compOptionsNext)
 
@@ -345,14 +378,14 @@ class VIXontime():
     def InmoneyOptions(self, K0near, K0next, nearOption, nextOption):
         # def InmoneyOptions(self, Fnear, Fnext, nearOption, nextOption):
         base = K0near.px[0]
-        compOptionsNear = pd.concat([nearOption[(nearOption.px <= base) & (nearOption.cp == 'P')],
-                                     nearOption[(nearOption.px >= base) & (nearOption.cp == 'C')]])
+        compOptionsNearP = nearOption[(nearOption.px <= base) & (nearOption.cp == 'P')]
+        compOptionsNearC = nearOption[(nearOption.px >= base) & (nearOption.cp == 'C')]
         # print(self.compOptionsNear)
         base = K0next.px[0]
-        compOptionsNext = pd.concat([nextOption[(nextOption.px <= base) & (nextOption.cp == 'P')],
-                                     nextOption[(nextOption.px >= base) & (nextOption.cp == 'C')]])
+        compOptionsNextP = nextOption[(nextOption.px <= base) & (nextOption.cp == 'P')]
+        compOptionsNextC = nextOption[(nextOption.px >= base) & (nextOption.cp == 'C')]
         # print(self.compOptionsNext)
-        return compOptionsNear, compOptionsNext
+        return compOptionsNearP, compOptionsNearC, compOptionsNextP, compOptionsNextC
 
     def HistoryData(self, startcount, endcount, nearOption, nextOption):
         conn = redis.Redis(host='168.36.1.181', port=6379, db=9, password='', charset='gb18030',
@@ -402,9 +435,11 @@ class VIXontime():
 
 
 class backstage():
-    def __init__(self, History=True):
+    def __init__(self, q, symbol, History=True):
 
-        self.K = VIXontime(History)
+        self.q = q
+        self.symbol = symbol
+        self.K = VIXontime(symbol, History)
         self.counts = self.K.counts
 
         self.publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
@@ -418,8 +453,9 @@ class backstage():
 
     def iterator(self):
         self.update_plot_ontime()
-        if self.counts>=14402:
+        if self.counts > 14401:
             self.timer.cancel()
+            self.q.put('out')
             sys.exit()
         wait = self.sync()
         self.timer = threading.Timer(wait, self.iterator)
@@ -430,40 +466,74 @@ class backstage():
         return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1)) -
                 dt.datetime.now()).total_seconds()
 
-        self.timer = threading.Timer(0.5, self.iterator)
-        self.timer.start()
+        # self.timer = threading.Timer(0.5, self.iterator)
+        # self.timer.start()
 
     def update_plot_ontime(self):
         self.K.getPriceOntime(self.K.ThreadMonitor)
         if 0 < self.K.counts < 14402 and self.counts != self.K.counts:
-            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#01:ZH',
+
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:ZH',
                                 value=self.K._Sr_vixOntime[self.K.counts - 1])
-            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#0:ZH',
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:ZH',
                                 value=self.K._Sr_vixNearOntime[self.K.counts - 1])
-            self.publisher.hset(name=rKeysList[self.counts], key=symbol[:6] + ':#1:ZH',
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:ZH',
                                 value=self.K._Sr_vixNextOntime[self.K.counts - 1])
-            self.publisher.publish(channel='V:', message=rKeysList[self.counts])
+
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:C',
+                                value=self.K._Sr_vixOntimeC[self.K.counts - 1])
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:C',
+                                value=self.K._Sr_vixNearOntimeC[self.K.counts - 1])
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:C',
+                                value=self.K._Sr_vixNextOntimeC[self.K.counts - 1])
+
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:P',
+                                value=self.K._Sr_vixOntimeP[self.K.counts - 1])
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:P',
+                                value=self.K._Sr_vixNearOntimeP[self.K.counts - 1])
+            self.publisher.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:P',
+                                value=self.K._Sr_vixNextOntimeP[self.K.counts - 1])
+
+            self.q.put(rKeysList[self.counts])
+
             self.counts = self.K.counts
         else:
             self.counts = self.K.counts
 
 
-
-# def tt(x):
-#     x.set_index('cp', inplace=True)
-#     return int(x.loc['C', 'px']) - int(x.loc['P', 'px'])
-
 def main():
-    global symbol
+    # global symbol
     # K = VIXontime()
     # T = K.nearOption.groupby('pxu').apply(lambda x: tt(x))
     # print(T)
     # 修改标的
     if len(sys.argv) > 1:
-        symbol = sys.argv[1]
+        symbolList = sys.argv[1].split(',')
+    else:
+        sys.exit()
+    Flag = multiprocessing.Queue(100)
+    publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
+                                     errors='replace', decode_responses=True, )
+    tasks = [multiprocessing.Process(target=backstage, args=(Flag, symbol, False)) for symbol in symbolList]
+    L = len(symbolList)
 
-    backstage()
+    D = defaultdict(lambda: 0)
 
+    for task in tasks:
+        task.start()
+    while True:
+        try:
+            F = Flag.get()
+            D[F] = D[F]+1
+            if D[F] == L:
+                if F=='out':
+                    break
+                else:
+                    publisher.publish(channel='V:', message=F)
+                    del D[F]
+        except:
+            publisher.close()
+            sys.exit()
 
 
 if __name__ == '__main__':
