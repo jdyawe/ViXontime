@@ -52,8 +52,8 @@ class JQVIXonTime:
         q = jds.query(jds.opt.OPT_DAILY_PREOPEN) \
             .filter((jds.opt.OPT_DAILY_PREOPEN.underlying_symbol == underlying_asset)
                     & (jds.opt.OPT_DAILY_PREOPEN.date == tdy.date())
-                    & (jds.opt.OPT_DAILY_PREOPEN.expire_date >= tdy)
-                    & (jds.opt.OPT_DAILY_PREOPEN.expire_date <= tdy + datetime.timedelta(days=70)))
+                    & (jds.opt.OPT_DAILY_PREOPEN.expire_date >= tdy.date())
+                    & (jds.opt.OPT_DAILY_PREOPEN.expire_date <= tdy + datetime.timedelta(days=120)))
         self.options = jds.opt.run_query(q).loc[:, ['code', 'contract_type', 'exercise_price', 'expire_date']]
 
         self.expireDates = sorted(self.options.expire_date.drop_duplicates().tolist())[:2]
@@ -68,6 +68,8 @@ class JQVIXonTime:
         self.VIX_TICK_DATA = pd.Series(dtype='float')
 
     def getPriceOntime(self):
+        if datetime.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)>datetime.datetime.now()>datetime.datetime.now().replace(hour=11, minute=30, second=10, microsecond=0):
+            time.sleep((datetime.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)-datetime.datetime.now()).total_seconds())
         self.price = jds.get_bars(security=self.options.index.to_list(), count=1, unit='1m', fields=['close'],
                                   end_dt=(datetime.datetime.now()+datetime.timedelta(minutes=1)).replace(second=0),
                                   include_now=True).reset_index(level=0).set_index('level_0')
@@ -257,6 +259,9 @@ def main():
     # K = VIXontime()
     # T = K.nearOption.groupby('pxu').apply(lambda x: tt(x))
     # print(T)
+    tremain = (datetime.datetime.now().replace(hour=9, minute=29, second=30) - datetime.datetime.now()).total_seconds()
+    if tremain > 0:
+        time.sleep(tremain)
     QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app = QtWidgets.QApplication(sys.argv)
     gui = MainUI()

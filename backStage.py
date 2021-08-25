@@ -158,7 +158,7 @@ class VIXontime():
             #     H.start()
             #     H.join()
 
-        self.getPriceOntime(self.ThreadMonitor)
+        # self.getPriceOntime(self.ThreadMonitor)
 
         self.UpdateFlag = False
 
@@ -300,6 +300,7 @@ class VIXontime():
         K0next = nextOption.px[nextOption.px <= Fnext].max()
         K0next = nextOption[nextOption.px == K0next]
 
+        baseP = 20
         compOptionsNearP, compOptionsNearC, compOptionsNextP, compOptionsNextC = self.InmoneyOptions(K0near, K0next, nearOption, nextOption)
         # compOptionsNear, compOptionsNext = self.InmoneyOptions(Fnear, Fnext, nearOption, nextOption)
 
@@ -328,7 +329,7 @@ class VIXontime():
         NearComponentC = 365 / 30 * self.TminRemainingNear[counts] * sigmaNearC * \
                         (self.TminRemainingNext[counts] - 30 / 365) / (
                                 self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
-        NearComponentP = 365 / 30 * self.TminRemainingNear[counts] * sigmaNearP * \
+        NearComponentP = 365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP) * \
                          (self.TminRemainingNext[counts] - 30 / 365) / (
                                  self.TminRemainingNext[counts] - self.TminRemainingNear[counts])
         NextComponentC = 365 / 30 * self.TminRemainingNext[counts] * sigmaNextC * \
@@ -345,7 +346,8 @@ class VIXontime():
         self._Sr_vixOntime[counts] = sigmaOntimeP+sigmaOntimeC
 
         self._Sr_vixNearOntimeC[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearC)
-        self._Sr_vixNearOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearP)
+        print(self.TminRemainingNear[counts], sigmaNearP)
+        self._Sr_vixNearOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP+baseP))
         self._Sr_vixNearOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP + sigmaNearC))
         # 近期合约波动率
 
@@ -426,6 +428,28 @@ class VIXontime():
 
             self.evaluation(counts, nearOption, nextOption)
 
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#01:ZH',
+                                value=self._Sr_vixOntime[counts - 1])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#0:ZH',
+                                value=self._Sr_vixNearOntime[counts - 1])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#1:ZH',
+                                value=self._Sr_vixNextOntime[counts - 1])
+
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:C',
+                                value=self._Sr_vixOntimeC[counts - 1])
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:C',
+                                value=self._Sr_vixNearOntimeC[counts - 1])
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:C',
+                                value=self._Sr_vixNextOntimeC[counts - 1])
+
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:P',
+                                value=self._Sr_vixOntimeP[counts - 1])
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:P',
+                                value=self._Sr_vixNearOntimeP[counts - 1])
+            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:P',
+                                value=self._Sr_vixNextOntimeP[counts - 1])
+
+        conn_r.execute()
         conn_r.close()
         conn.close()
 
@@ -439,7 +463,7 @@ class backstage():
 
         self.q = q
         self.symbol = symbol
-        self.K = VIXontime(symbol, History)
+        self.K = VIXontime(self.symbol, History)
         self.counts = self.K.counts
 
         self.publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
@@ -452,18 +476,20 @@ class backstage():
         self.timer.start()
 
     def iterator(self):
+
         self.update_plot_ontime()
         if self.counts > 14401:
             self.timer.cancel()
             self.q.put('out')
+            time.sleep(0.5)
             sys.exit()
         wait = self.sync()
         self.timer = threading.Timer(wait, self.iterator)
-        print(dt.datetime.now())
+        # print(dt.datetime.now())
         self.timer.start()
 
     def sync(self):
-        return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1)) -
+        return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1.5)) -
                 dt.datetime.now()).total_seconds()
 
         # self.timer = threading.Timer(0.5, self.iterator)
@@ -514,7 +540,7 @@ def main():
     Flag = multiprocessing.Queue(100)
     publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
                                      errors='replace', decode_responses=True, )
-    tasks = [multiprocessing.Process(target=backstage, args=(Flag, symbol, False)) for symbol in symbolList]
+    tasks = [multiprocessing.Process(target=backstage, args=(Flag, symbol, True)) for symbol in symbolList]
     L = len(symbolList)
 
     D = defaultdict(lambda: 0)
