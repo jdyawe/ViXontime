@@ -476,7 +476,8 @@ class backstage():
         self.timer.start()
 
     def iterator(self):
-
+        while self.K.ThreadMonitor.countsTag == self.K.ThreadMonitor.counts:
+            time.sleep(0.1)
         self.update_plot_ontime()
         if self.counts > 14401:
             self.timer.cancel()

@@ -241,7 +241,7 @@ class MainUI(QtWidgets.QMainWindow):
     def update_plot_ontime(self):
         self.K.evaluation()
         if self.K.timestamp <= self.K.Xrange[-1]:
-            temp = sum(self.K.Xrange<=self.K.timestamp)+1
+            temp = sum(self.K.Xrange <= self.K.timestamp)+1
             self.LinesPlot['vix'].setData(range(temp),
                                         self.K.VIX_Ontime.iloc[:temp])
 
