@@ -10,18 +10,27 @@ import seaborn as sns
 import scipy
 import sklearn as skl
 
+import sys
+import os
+
 # eft复权后取平价合约和直接利用沽购合约价差最小取平价合约的结果不一定相同！！！
 
 pd.set_option('display.max_columns', 30)
 
+<<<<<<< Updated upstream
 start = pd.to_datetime('20210701')
 end = pd.to_datetime('20210809')
+=======
+start = pd.to_datetime('20190301')
+end = pd.to_datetime('20210810')
+>>>>>>> Stashed changes
 tdy = datetime.now()
+ystdy = datetime.now() - dt.timedelta(days=1)
 symbol = "510050.XSHG"
 
 
 class VIXDaily():
-    def __init__(self, underlying_asset: str, startdate, enddate):
+    def __init__(self, underlying_asset: str, startdate, enddate=tdy):
         # symbol is the underlying assets of option
         # startdate: VIX start time
         # enddate: VIX end time
@@ -47,6 +56,8 @@ class VIXDaily():
 
         #取历史合约行情
         self.tradedays = jds.get_trade_days(start_date=startdate, end_date=enddate)
+        if len(self.tradedays)<=0:
+            sys.exit()
         # for i in np.arange(len(self.tradedays)):
         #     self.tradedays[i] = datetime(self.tradedays[i].year, self.tradedays[i].month, self.tradedays[i].day, )
         # print(self.tradedays)
@@ -58,14 +69,14 @@ class VIXDaily():
         # 初始化
         date = self.tradedays[0]
         self.getOption(date)
-        self.Vix[0] = self.evaluationByETFClosest(date)
+        self.Vix[0] = self.evaluationByCPClosest(date)
 
     def forward(self):
         for i in np.arange(1, self.tradedays.size):
             date = self.tradedays[i]
             if date in self.expire_dates or date in self.list_dates:
                 self.getOption(date)
-            self.Vix[i] = self.evaluationByETFClosest(date)
+            self.Vix[i] = self.evaluationByCPClosest(date)
 
     def getOption(self, trading_date):
         # 初始化
@@ -74,16 +85,18 @@ class VIXDaily():
         self.neartermOption = self.history_option.loc[self.neartermExpireDate, :].reindex(
             columns=self.fields).sort_values(by='name')
         self.neartermOption = self.neartermOption[self.neartermOption.list_date <= trading_date]
+
         self.nexttermOption = self.history_option.loc[self.nexttermExpireDate, :].reindex(
             columns=self.fields).sort_values(by='name')
         self.nexttermOption = self.nexttermOption[self.nexttermOption.list_date <= trading_date]
+
         self.neartermOptionPrice = pd.DataFrame()
         self.nexttermOptionPrice = pd.DataFrame()
-        for Option in self.neartermOption.loc[:, 'code']:
+        for Option in self.neartermOption.code:
             que = jds.query(jds.opt.OPT_DAILY_PRICE).filter(
                 (jds.opt.OPT_DAILY_PRICE.code == Option) & (jds.opt.OPT_DAILY_PRICE.date >= trading_date))
             self.neartermOptionPrice = pd.concat([self.neartermOptionPrice, jds.opt.run_query(que)])
-        for Option in self.nexttermOption.loc[:, 'code']:
+        for Option in self.nexttermOption.code:
             que = jds.query(jds.opt.OPT_DAILY_PRICE).filter(
                 (jds.opt.OPT_DAILY_PRICE.code == Option) & (jds.opt.OPT_DAILY_PRICE.date >= trading_date))
             self.nexttermOptionPrice = pd.concat([self.nexttermOptionPrice, jds.opt.run_query(que)])
@@ -103,9 +116,9 @@ class VIXDaily():
     def evaluationByCPClosest(self, trading_date):
         # 取平价合约
         tempP = self.neartermOption.reset_index().set_index('contract_type').loc[
-            'PO', ['exercise_price', 'code', 'name']].set_index('exercise_price', drop=False)
+            'PO', ['exercise_price', 'code']].set_index('exercise_price', drop=False)
         tempC = self.neartermOption.reset_index().set_index('contract_type').loc[
-            'CO', ['exercise_price', 'code', 'name']].set_index('exercise_price')
+            'CO', ['exercise_price', 'code']].set_index('exercise_price')
         nearOptionEval = pd.concat({'C': tempC, 'P': tempP}, axis=1)
         difference = [0] * len(nearOptionEval)
         Q = [0] * len(nearOptionEval)
@@ -123,8 +136,8 @@ class VIXDaily():
         # print(nearOptionEval)
 
         K0near = nearOptionEval.loc[:, ('P', 'exercise_price')] - Fnear
-        if (K0near < 0).any():
-            K0near = K0near[K0near < 0]
+        if (K0near <= 0).any():
+            K0near = K0near[K0near <= 0]
             K0near = nearOptionEval.loc[K0near.idxmax(), :]
         else:
             K0near = nearOptionEval.loc[K0near.idxmin(), :]
@@ -136,16 +149,20 @@ class VIXDaily():
         # print(Fnear)
 
         for i in np.arange(len(nearOptionEval)):
-            p = K0near.name
+            try:
+                pnear = K0near.name
+            except:
+                pnear = K0near.index[0]
             row = nearOptionEval.iloc[i, :]
             # security = row[('C', 'code')] if row.name > p else row[('P', 'code')]
             # bp = jds.get_ticks(security, pd.to_datetime(trading_date) + dt.timedelta(hours=14, minutes=59),
             #                    pd.to_datetime(trading_date) + dt.timedelta(hours=15), fields=['a1_p', 'b1_p'])
             # Q[i] = (bp.iloc[-1, 0] + bp.iloc[-1, 1])/2
             # print(Q[i])
-            Q[i] = self.neartermOptionPrice.loc[
-                ((row[('C', 'code')]), pd.to_datetime(trading_date)), 'close'] if row.name > p \
-                else self.neartermOptionPrice.loc[((row[('P', 'code')]), pd.to_datetime(trading_date)), 'close']
+            if row.name >= pnear:
+                Q[i] = Q[i] + self.neartermOptionPrice.loc[((row[('C', 'code')]), pd.to_datetime(trading_date)), 'close']
+            if row.name <= pnear:
+                Q[i] = Q[i] + self.neartermOptionPrice.loc[((row[('P', 'code')]), pd.to_datetime(trading_date)), 'close'] 
             # print(Q[i])
 
             if i == 0:
@@ -158,9 +175,9 @@ class VIXDaily():
         nearOptionEval['DeltaK'] = DeltaK
 
         tempP = self.nexttermOption.reset_index().set_index('contract_type').loc[
-            'PO', ['exercise_price', 'code', 'name']].set_index('exercise_price', drop=False)
+            'PO', ['exercise_price', 'code']].set_index('exercise_price', drop=False)
         tempC = self.nexttermOption.reset_index().set_index('contract_type').loc[
-            'CO', ['exercise_price', 'code', 'name']].set_index('exercise_price')
+            'CO', ['exercise_price', 'code']].set_index('exercise_price')
         nextOptionEval = pd.concat({'C': tempC, 'P': tempP}, axis=1)
 
         difference = [0] * len(nextOptionEval)
@@ -177,8 +194,8 @@ class VIXDaily():
         Fnext = float(Snext.name + np.exp(self.R * Tnext) * Snext['diff'])
 
         K0next = nextOptionEval.loc[:, ('P', 'exercise_price')] - Fnear
-        if (K0next < 0).any():
-            K0next = K0next[K0next < 0]
+        if (K0next <= 0).any():
+            K0next = K0next[K0next <= 0]
             K0next = nextOptionEval.loc[K0next.idxmax(), :]
         else:
             K0next = nextOptionEval.loc[K0next.idxmin(), :]
@@ -190,16 +207,21 @@ class VIXDaily():
         # print(' - -' * 10)
 
         for i in np.arange(len(nextOptionEval)):
-            p = K0next.name
+            try:
+                pnext = K0next.name
+            except:
+                pnext = K0next.index[0]
             row = nextOptionEval.iloc[i, :]
             # security = row[('C', 'code')] if row.name > p else row[('P', 'code')]
             # bp = jds.get_ticks(security, pd.to_datetime(trading_date) + dt.timedelta(hours=14, minutes=59),
             #                    pd.to_datetime(trading_date) + dt.timedelta(hours=15), fields=['a1_p', 'b1_p'])
             # Q[i] = (bp.iloc[-1, 0] + bp.iloc[-1, 1])/2
             # print(Q[i])
-            Q[i] = self.nexttermOptionPrice.loc[
-                ((row[('C', 'code')]), pd.to_datetime(trading_date)), 'close'] if row.name > p \
-                else self.nexttermOptionPrice.loc[((row[('P', 'code')]), pd.to_datetime(trading_date)), 'close']
+            if row.name >= pnext:
+                Q[i] = Q[i] + self.nexttermOptionPrice.loc[((row[('C', 'code')]), pd.to_datetime(trading_date)), 'close']
+            if row.name <= pnext:
+                Q[i] = Q[i] + self.nexttermOptionPrice.loc[((row[('P', 'code')]), pd.to_datetime(trading_date)), 'close'] 
+            # print(Q[i])
             # print(Q[i])
             if i == 0:
                 DeltaK[i] = (nextOptionEval.index[i + 1] - nextOptionEval.index[i]) / 2
@@ -215,11 +237,12 @@ class VIXDaily():
 
         if Tnear != 0:
             sigma_near = 2 / Tnear * (nearOptionEval.DeltaK / (nearOptionEval.exercise_price ** 2) * np.exp(
-                self.R * Tnear) * nearOptionEval.Q).sum() - 1 / Tnear * (Fnear / K0near.name - 1) ** 2
+                self.R * Tnear) * nearOptionEval.Q).sum() - 1 / Tnear * (Fnear / pnear - 1) ** 2
         else:
             sigma_near = 0
+
         sigma_next = 2 / Tnext * (nextOptionEval.DeltaK / (nextOptionEval.exercise_price ** 2) * np.exp(
-            self.R * Tnear) * nextOptionEval.Q).sum() - 1 / Tnext * (Fnext / K0next.name - 1) ** 2
+            self.R * Tnext) * nextOptionEval.Q).sum() - 1 / Tnext * (Fnext / pnext - 1) ** 2
 
         sigma = 100*np.sqrt(1/30*(Tnear*sigma_near*(Tnext-30)/(Tnext-Tnear)+Tnext*sigma_next*(30-Tnear)/(Tnext-Tnear)))
 
@@ -351,7 +374,7 @@ class VIXDaily():
         sigma_next = 2 / Tnext * (nextOptionEval.DeltaK / (nextOptionEval.exercise_price ** 2) * np.exp(
             self.R * Tnear) * nextOptionEval.Q).sum() - 1 / Tnext * (Fnext / K0next.name - 1) ** 2
 
-        sigma = 100*np.sqrt(1/30*(Tnear*sigma_near*(Tnext-30)/(Tnext-Tnear)+Tnext*sigma_next*(30-Tnear)/(Tnext-Tnear)))
+        sigma = 100*np.sqrt(365/30*(Tnear*sigma_near*(Tnext-30/365)/(Tnext-Tnear)+Tnext*sigma_next*(30/365-Tnear)/(Tnext-Tnear)))
 
         return [sigma_near, sigma_next, sigma, nearOptionEval, nextOptionEval]
 
@@ -362,23 +385,26 @@ class VIXDaily():
         # print(self.etfPrice)
 
 def main():
-    K = VIXDaily(underlying_asset=symbol, startdate=start, enddate=end)
+    K = VIXDaily(underlying_asset=symbol, startdate=ystdy, enddate=tdy)
     K.start()
     K.forward()
-    vix = pd.Series(np.zeros(len(K.Vix)), index=K.tradedays)
+    vix = pd.Series(dtype='float64')
     for i in np.arange(len(K.tradedays)):
-        day = K.tradedays[i]
+        day = K.tradedays[i].strftime("%Y-%m-%d")
         vix[day] = K.Vix[i][2]
 
-    # print(temp)
-
-    # print(sigma_near)
-    # print(K0near)
-    # print(sigma_near)
-    # print(sigma_next)
-
-    plt.plot(vix)
-    vix.to_csv('VIXDaily.csv', header=None)
+    if os.path.exists('VIXDaily.csv'):
+        vixp = pd.read_csv('VIXDaily.csv', index_col=0, header=None).iloc[:,0]
+    else:
+        vixp = pd.Series()
+    for date in vix.index:
+        if date not in vixp.index:
+            vixp[date] = vix[date]                 
+    plt.plot(vixp[-150:])
+    label = vixp.index[-150::25].tolist()
+    label.append(vixp.index[-1])
+    plt.xticks(label, rotation=10)
+    vixp.to_csv('VIXDaily.csv', header=None)
     plt.show()
 
 
