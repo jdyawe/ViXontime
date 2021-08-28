@@ -17,13 +17,8 @@ import os
 
 pd.set_option('display.max_columns', 30)
 
-<<<<<<< Updated upstream
-start = pd.to_datetime('20210701')
-end = pd.to_datetime('20210809')
-=======
-start = pd.to_datetime('20190301')
+start = pd.to_datetime('20190101')
 end = pd.to_datetime('20210810')
->>>>>>> Stashed changes
 tdy = datetime.now()
 ystdy = datetime.now() - dt.timedelta(days=1)
 symbol = "510050.XSHG"
