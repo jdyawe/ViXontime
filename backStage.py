@@ -3,7 +3,6 @@ import datetime as dt
 import pandas as pd
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import redis
 import yaml
 import threading
@@ -16,18 +15,17 @@ from ut_dmdi import DailyMdi
 
 import multiprocessing
 
-import seaborn as sns
-
-import scipy
-import sklearn as sl
-
 from sublist import rKeysList
 
-# 合成期货价格F也许也有不错的意义？？？？？？？？？？？？
+'''
+环境变量输入为标的列表，逗号分割
+每一个标的独立为一个进程
+main函数负责所有进程间的同步与所有进程计算完毕后在181:9上做发布，发布信息为“V：“
 
-# 程序中存在数据标度不同的问题待解决
-
-# 计算中的浮点数精度待处理！！！！！
+每一个进程由两个线程组成
+线程a为订阅181:9中H:频道，用于负责从redis中监控数据更新，当收到订阅信息时做counts+1
+线程b为监控a线程并在检测到数据更新时从redis中获取数据并计算，计算完毕后反馈给线程a，使countsTag+1
+'''
 
 pd.set_option('display.max_columns', 30)
 pd.set_option('mode.chained_assignment', None)
@@ -232,6 +230,11 @@ class VIXontime():
         self.conn_r = self.conn.pipeline(transaction=False)
 
     def getPriceOntime(self, thief: MyThread):
+
+        if dt.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)>dt.datetime.now()>dt.datetime.now().replace(hour=11, minute=30, second=10, microsecond=0):
+            # 午间休市时间， 休息！！
+            time.sleep((dt.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)-dt.datetime.now()).total_seconds())
+
         if thief.countsTag == thief.counts:
             return
         else:
@@ -346,8 +349,7 @@ class VIXontime():
         self._Sr_vixOntime[counts] = sigmaOntimeP+sigmaOntimeC
 
         self._Sr_vixNearOntimeC[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearC)
-        print(self.TminRemainingNear[counts], sigmaNearP)
-        self._Sr_vixNearOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP+baseP))
+        self._Sr_vixNearOntimeP[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * sigmaNearP+baseP)
         self._Sr_vixNearOntime[counts] = 100 * np.sqrt(365 / 30 * self.TminRemainingNear[counts] * (sigmaNearP + sigmaNearC))
         # 近期合约波动率
 
@@ -429,25 +431,26 @@ class VIXontime():
             self.evaluation(counts, nearOption, nextOption)
 
             conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#01:ZH',
-                                value=self._Sr_vixOntime[counts - 1])
+                                value=self._Sr_vixOntime[counts])
             conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#0:ZH',
-                                value=self._Sr_vixNearOntime[counts - 1])
+                                value=self._Sr_vixNearOntime[counts])
             conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#1:ZH',
-                                value=self._Sr_vixNextOntime[counts - 1])
+                                value=self._Sr_vixNextOntime[counts])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#01:C',
+                                value=self._Sr_vixOntimeC[counts])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#0:C',
+                                value=self._Sr_vixNearOntimeC[counts])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#1:C',
+                                value=self._Sr_vixNextOntimeC[counts])
 
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:C',
-                                value=self._Sr_vixOntimeC[counts - 1])
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:C',
-                                value=self._Sr_vixNearOntimeC[counts - 1])
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:C',
-                                value=self._Sr_vixNextOntimeC[counts - 1])
-
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#01:P',
-                                value=self._Sr_vixOntimeP[counts - 1])
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#0:P',
-                                value=self._Sr_vixNearOntimeP[counts - 1])
-            conn_r.hset(name=rKeysList[self.counts], key=self.symbol[:6] + ':#1:P',
-                                value=self._Sr_vixNextOntimeP[counts - 1])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#01:P',
+                                value=self._Sr_vixOntimeP[counts])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#0:P',
+                                value=self._Sr_vixNearOntimeP[counts])
+            conn_r.hset(name=rKeysList[counts], key=self.symbol[:6] + ':#1:P',
+                                value=self._Sr_vixNextOntimeP[counts])
+            if counts % 100 == 0:
+                print('process complete========', counts/endcount*100, '%================')
 
         conn_r.execute()
         conn_r.close()
@@ -477,6 +480,7 @@ class backstage():
 
     def iterator(self):
         while self.K.ThreadMonitor.countsTag == self.K.ThreadMonitor.counts:
+            # 如果后台数据还未更新就等待0.1s
             time.sleep(0.1)
         self.update_plot_ontime()
         if self.counts > 14401:
@@ -490,7 +494,7 @@ class backstage():
         self.timer.start()
 
     def sync(self):
-        return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1.5)) -
+        return ((dt.datetime.now().replace(microsecond=0)+dt.timedelta(seconds=1)) -
                 dt.datetime.now()).total_seconds()
 
         # self.timer = threading.Timer(0.5, self.iterator)
@@ -534,14 +538,24 @@ def main():
     # T = K.nearOption.groupby('pxu').apply(lambda x: tt(x))
     # print(T)
     # 修改标的
+
+
     if len(sys.argv) > 1:
         symbolList = sys.argv[1].split(',')
     else:
         sys.exit()
+
+    tremain = (dt.datetime.now().replace(hour=9, minute=29, second=30) - dt.datetime.now()).total_seconds()
+    if tremain > 0:
+        time.sleep(tremain)
+
     Flag = multiprocessing.Queue(100)
     publisher = redis.Redis(host='168.36.1.181', db=9, port=6379, password='', charset='gb18030',
                                      errors='replace', decode_responses=True, )
     tasks = [multiprocessing.Process(target=backstage, args=(Flag, symbol, True)) for symbol in symbolList]
+
+    # 单进程，每一次运算耗时大约0.06-0.07之间
+
     L = len(symbolList)
 
     D = defaultdict(lambda: 0)
@@ -565,3 +579,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
