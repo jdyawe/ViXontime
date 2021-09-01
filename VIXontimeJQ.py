@@ -57,6 +57,7 @@ class JQVIXonTime:
         self.options = jds.opt.run_query(q).loc[:, ['code', 'contract_type', 'exercise_price', 'expire_date']]
 
         self.expireDates = sorted(self.options.expire_date.drop_duplicates().tolist())[:2]
+        
         self.NearOpExpireDate = pd.to_datetime(self.expireDates[0]).replace(hour=15)
         self.NextOpExpireDate = pd.to_datetime(self.expireDates[1]).replace(hour=15)
         self.options = self.options[self.options.expire_date <= self.expireDates[1]]

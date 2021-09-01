@@ -201,6 +201,8 @@ class VIXDaily():
         # print(self.etfPrice.loc[trading_date.strftime('%Y-%m-%d'), 'close'])
         # print(' - -' * 10)
 
+        print(Tnear, Tnext)
+
         for i in np.arange(len(nextOptionEval)):
             try:
                 pnext = K0next.name
@@ -380,7 +382,7 @@ class VIXDaily():
         # print(self.etfPrice)
 
 def main():
-    K = VIXDaily(underlying_asset=symbol, startdate=ystdy, enddate=tdy)
+    K = VIXDaily(underlying_asset=symbol, startdate=ystdy, enddate=ystdy)
     K.start()
     K.forward()
     vix = pd.Series(dtype='float64')
