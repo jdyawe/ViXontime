@@ -1,9 +1,9 @@
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import sys, os, shutil, re
-import traceback
-import psutil
-import redis
+# import traceback
+# import psutil
+# import redis
 import time, datetime
 import yaml
 from PyQt5.QtWidgets import QColorDialog
@@ -18,7 +18,7 @@ import jqdatasdk as jds
 
 from multiprocessing import Process, Value  # 导入multiprocessing模块，然后导入Process这个类
 
-import threading
+# import threading
 from time import sleep, ctime
 
 import warnings
@@ -69,14 +69,17 @@ class JQVIXonTime:
         self.VIX_TICK_DATA = pd.Series(dtype='float')
 
     def getPriceOntime(self):
-        if datetime.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)>datetime.datetime.now()>datetime.datetime.now().replace(hour=11, minute=30, second=10, microsecond=0):
-            time.sleep((datetime.datetime.now().replace(hour=12, minute=59, second=30, microsecond=0)-datetime.datetime.now()).total_seconds())
+        if datetime.datetime.now().replace(hour=12, minute=59, second=50, microsecond=0)>datetime.datetime.now()>datetime.datetime.now().replace(hour=11, minute=30, second=10, microsecond=0):
+            time.sleep((datetime.datetime.now().replace(hour=12, minute=59, second=50, microsecond=0)-datetime.datetime.now()).total_seconds())
+        if datetime.datetime.now()>datetime.datetime.now().replace(hour=15, minute=00, second=10, microsecond=0):
+            return False
         self.price = jds.get_bars(security=self.options.index.to_list(), count=1, unit='1m', fields=['close'],
                                   end_dt=(datetime.datetime.now()+datetime.timedelta(minutes=1)).replace(second=0),
                                   include_now=True).reset_index(level=0).set_index('level_0')
         self.ticktime = datetime.datetime.now().replace(microsecond=0)
         self.timestamp = (datetime.datetime.now()+datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         self.options['close'] = self.price
+        return True
         # self.options = self.options.reset_index().set_index(['contract_type', 'exercise_price'])
 
     def DeltaK(self, x):
@@ -88,7 +91,9 @@ class JQVIXonTime:
         return x.sort_values(by=['expire_date', 'contract_type', 'exercise_price'])
 
     def evaluation(self):
-        self.getPriceOntime()
+        Flag = self.getPriceOntime()
+        if not Flag:
+            return False
         # 得到平价期权
         temp = (self.options.reset_index().set_index(['contract_type', 'exercise_price'])). \
             groupby('expire_date').apply(
@@ -143,6 +148,7 @@ class JQVIXonTime:
         self.VIX_Ontime[self.timestamp] = sigma
         self.VIX_TICK_DATA[self.ticktime] = sigma
         print(self.timestamp, sigma)
+        return True
 
 
     def Inmoney(self, x):
@@ -240,7 +246,12 @@ class MainUI(QtWidgets.QMainWindow):
         self.timer.start(1000)
 
     def update_plot_ontime(self):
-        self.K.evaluation()
+        Flag = self.K.evaluation()
+        if not Flag:
+            self.timer.disconnect()
+            self.timer.deleteLater()
+            time.sleep(1)
+            return
         if self.K.timestamp <= self.K.Xrange[-1]:
             temp = sum(self.K.Xrange <= self.K.timestamp)+1
             self.LinesPlot['vix'].setData(range(temp),
